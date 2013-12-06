@@ -161,10 +161,14 @@ vector<Cluster> createClusterArray(int** brightnessMatrix){
 			if(brightnessMatrix[x][y] > 0){
 				printf("curBrightness: %d at ", brightnessMatrix[x][y]);
 				printCoord(curPoint, "curPoint: ");
+				
 				localMaxBrightnessPoint = findLocalMaxBrightness(brightnessMatrix, curPoint);
+				
 				printCoord(localMaxBrightnessPoint, "localMaxBrightnessPoint: ");
+				
 				localMaxBrightness = brightnessMatrix[localMaxBrightnessPoint.x][localMaxBrightnessPoint.y];
 				relBrightness = (double)localMaxBrightness / maxBrightness;
+				
 				printCoord(localMaxBrightnessPoint, "localMaxBrightnessPoint: ");
 				printf("localMax: %d\n", localMaxBrightness);
 				printf("relBrightness: %f\n\n\n", relBrightness);
