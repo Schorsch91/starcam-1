@@ -3,9 +3,20 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include "cluster.cpp"
 
 using namespace std;
+
+struct coordinates
+{
+	int x = -1;
+	int y = -1;
+};
+
+struct cluster
+{
+	coordinates maxPoint;
+	int brightness;
+};
 
 ifstream inputPic;
 ofstream outputPic;
@@ -173,12 +184,10 @@ double calcROISize(double relBrightness){
 		return 2;
 }
 
-vector<Cluster> createClusterArray(int** brightnessMatrix){
-	vector<Cluster> clusters;
-	bool** processedMatrix = createBinaryMatrix(imageDimension);
+vector<cluster> createClusterArray(int** brightnessMatrix, int maxBrightness){
+	vector<cluster> clusters;
 	coordinates curPoint;
 
-	int maxBrightness = findMaxBrightnessAndDenoiseMatrix(brightnessMatrix, 25);
 	int cnt = 0;
 	printf("Max Brightness: %d\n", maxBrightness);
 
@@ -189,23 +198,26 @@ vector<Cluster> createClusterArray(int** brightnessMatrix){
 			curPoint.y = y;
 			coordinates localMaxBrightnessPoint;
 			int localMaxBrightness;
-			double relBrightness;
-
+			
 			if(brightnessMatrix[x][y] > 0){
 				printf("curBrightness: %d at ", brightnessMatrix[x][y]);
 				printCoord(curPoint, "curPoint: ");
 				
-				localMaxBrightnessPoint = findLocalMaxBrightness(brightnessMatrix, curPoint, brightnessMatrix[x][y], 3);
+				localMaxBrightnessPoint = findLocalMaxBrightness(brightnessMatrix, curPoint, brightnessMatrix[x][y]);
 				
 				printCoord(localMaxBrightnessPoint, "localMaxBrightnessPoint: ");
 				
 				localMaxBrightness = brightnessMatrix[localMaxBrightnessPoint.x][localMaxBrightnessPoint.y];
-				clearMatrixAroundPoint(brightnessMatrix, curPoint, 3);
-				relBrightness = (double)localMaxBrightness / maxBrightness;
-				
+				clearMatrixAroundPoint(brightnessMatrix, curPoint);
 
-				printf("localMax: %d\n", localMaxBrightness);
-				printf("relBrightness: %f\n\n\n", relBrightness);
+				cluster curCluster;
+				curCluster.maxPoint.x = localMaxBrightnessPoint.x;
+				curCluster.maxPoint.x = localMaxBrightnessPoint.x;
+				curCluster.brightness = localMaxBrightness;
+
+				clusters.push_back(curCluster);
+
+				printf("localMax: %d\n\n\n", localMaxBrightness);
 				cnt++;
 				
 			}
@@ -259,6 +271,7 @@ int main(){
 	printf("Headersize: %d\n", headerSize);
 	imageDimension = getPicDimensions(filename);
 	int** brightnessMatrix = createBrightnessMatrix(filename, headerSize);
-	vector<Cluster> roi = createClusterArray(brightnessMatrix);
+	int maxBrightness = findMaxBrightnessAndDenoiseMatrix(brightnessMatrix, 25);
+	vector<cluster> roi = createClusterArray(brightnessMatrix, maxBrightness);
 	return 0;
 }
