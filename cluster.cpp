@@ -34,7 +34,7 @@ void Cluster::addPoint(coordinates point){
 		}
 	}
 
-	if(!isNewPoint){
+	if(isNewPoint){
 		points.push_back(point);
 	}
 }
