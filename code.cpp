@@ -44,7 +44,7 @@ void printCoord(coordinates c, string s = ""){
 
 bool** createBinaryMatrix(coordinates dimension){
 	bool** m = new bool*[dimension.x];
-	for(int i=0; i < dimension.x; i++){
+	for(int i = 0; i < dimension.x; i++){
 		m[i] = new bool[dimension.y];
 	}
 	return m;
@@ -52,7 +52,7 @@ bool** createBinaryMatrix(coordinates dimension){
 
 int** createIntegerMatrix(coordinates dimension){
 	int** m = new int*[dimension.x];
-	for(int i=0; i < dimension.x; i++){
+	for(int i = 0; i < dimension.x; i++){
 		m[i] = new int[dimension.y];
 	}
 	return m;
@@ -91,7 +91,6 @@ int** createBrightnessMatrix(string filename, int headerSize){
 int findMaxBrightnessAndDenoiseMatrix(int** brightnessMatrix, int brightnessThreshold = 20){
 	int curMaxBrightness = 0;
 	int cnt = 0;
-	printf("val 851,57: %d\n", brightnessMatrix[851][57]);
 	
 	for(int x = 0; x < imageDimension.x; x++){
 		for (int y = 0; y < imageDimension.y; y++)
@@ -111,20 +110,20 @@ int findMaxBrightnessAndDenoiseMatrix(int** brightnessMatrix, int brightnessThre
 
 coordinates findLocalMaxBrightness(int** brightnessMatrix, coordinates center, int radius = 3){
 	coordinates curPoint, maxBrightnessPoint;
-	printf("val 851,57: %d\n", brightnessMatrix[851][57]);
+	
 	int localMaxBrightness = -1;
-	int cnt = 0;
-	int xVal = 0, yVal = 0;
-	for(int x = -radius; x <= radius; x++){
-		for (int y = -radius; y <= radius; y++)
+	
+	for(int i = -radius; i <= radius; i++){
+		for (int j = -radius; j <= radius; j++)
 		{
-			curPoint.x = center.x + x;
-			curPoint.y = center.y + y;
+			curPoint.x = center.x + i;
+			curPoint.y = center.y + j;
 
 			if(isValidPixel(curPoint)){
 				printf("%d at ", brightnessMatrix[curPoint.x][curPoint.x]);
+				printCoord(curPoint);
 			}
-			printCoord(curPoint);
+
 			if(isValidPixel(curPoint) && brightnessMatrix[curPoint.x][curPoint.x] > localMaxBrightness){
 			
 				maxBrightnessPoint.x = curPoint.x;
@@ -135,15 +134,15 @@ coordinates findLocalMaxBrightness(int** brightnessMatrix, coordinates center, i
 			}
 		}
 	}
+
 	printCoord(maxBrightnessPoint, "maxBrightnessPoint in Function");
-	printf("processed %d points\n", cnt);
+	
 	return maxBrightnessPoint;
 }
 
 vector<Cluster> createClusterArray(int** brightnessMatrix){
 	vector<Cluster> clusters;
 	bool** processedMatrix = createBinaryMatrix(imageDimension);
-	printf("procMatr: %d\n", processedMatrix[123][312]);
 	coordinates curPoint;
 
 	int maxBrightness = findMaxBrightnessAndDenoiseMatrix(brightnessMatrix, 25);
@@ -159,7 +158,7 @@ vector<Cluster> createClusterArray(int** brightnessMatrix){
 			int localMaxBrightness;
 			double relBrightness;
 
-			if(brightnessMatrix[x][y] != 0){
+			if(brightnessMatrix[x][y] > 0){
 				printf("curBrightness: %d at ", brightnessMatrix[x][y]);
 				printCoord(curPoint, "curPoint: ");
 				localMaxBrightnessPoint = findLocalMaxBrightness(brightnessMatrix, curPoint);
