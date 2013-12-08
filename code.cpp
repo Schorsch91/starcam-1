@@ -12,10 +12,19 @@ struct coordinates
 	int y = -1;
 };
 
+struct doubleCoordinates
+{
+	double x = -1.0;
+	double y = -1.0;
+};
+
 struct cluster
 {
 	coordinates maxPoint;
+	doubleCoordinates gravCenter;
+	int size; 
 	int brightness;
+	double relBrightness;
 };
 
 ifstream inputPic;
@@ -51,6 +60,14 @@ int getFileSize(string filename){
 
 void printCoord(coordinates c, string s = ""){
 	printf("%s(%d|%d)\n",s.c_str(), c.x, c.y);
+}
+
+void printCoord(doubleCoordinates c, string s = ""){
+	printf("%s(%f|%f)\n",s.c_str(), c.x, c.y);
+}
+
+void printCluster(cluster c, string s = ""){
+
 }
 
 bool** createBinaryMatrix(coordinates dimension){
@@ -115,7 +132,7 @@ int findMaxBrightnessAndDenoiseMatrix(int** brightnessMatrix, int brightnessThre
 			}
 		}
 	}
-	printf("%d pixel below brightnessThreshold(%d) \n", cnt, brightnessThreshold);
+	//printf("%d pixel below brightnessThreshold(%d) \n", cnt, brightnessThreshold);
 	return curMaxBrightness;
 }
 
@@ -132,11 +149,6 @@ coordinates findLocalMaxBrightness(int** brightnessMatrix, coordinates center, i
 				curPoint.x = center.x + i;
 				curPoint.y = center.y + j;
 
-				// if(isValidPixel(curPoint)){
-				// 	printf("%d at ", brightnessMatrix[curPoint.x][curPoint.x]);
-				// 	printCoord(curPoint);
-				// }
-
 				if(isValidPixel(curPoint) && 
 					brightnessMatrix[curPoint.x][curPoint.x] >= localMaxBrightness &&
 					!(i == 0 && j == 0)){
@@ -147,14 +159,13 @@ coordinates findLocalMaxBrightness(int** brightnessMatrix, coordinates center, i
 					foundMoreBrightness = true;
 
 					localMaxBrightness = brightnessMatrix[curPoint.x][curPoint.y];
-					printf("new maxBrightness %d\n", localMaxBrightness);
 				}
 			}
 		}
 		if(cnt > 10){
 			maxBrightnessPoint.x = center.x;
 			maxBrightnessPoint.y = center.y;
-			printf("More than 10 tries, choosing center\n"); 
+			
 			break;
 		}
 	}while(!foundMoreBrightness);
@@ -166,14 +177,12 @@ void clearMatrixAroundPoint(int** matrix, coordinates point, int radius = 3){
 	for(int i = -radius; i <= radius; i++){
 			for (int j = -radius; j <= radius; j++)
 			{
-				matrix[point.x - i][point.y - j] = 0;
+				matrix[point.x + i][point.y + j] = 0;
 		}
 	}
-	printf("cleared with r=%d around", radius);
-	printCoord(point);
 }
 
-double calcROISize(double relBrightness){
+int calcClusterSize(double relBrightness){
 	if(relBrightness >= 0.75)
 		return 9;
 	else if(relBrightness >= 0.5)
@@ -184,12 +193,48 @@ double calcROISize(double relBrightness){
 		return 2;
 }
 
+int** copyMatrix(int** matrix, coordinates dimension){
+	int** returnMatrix = createIntegerMatrix(dimension);
+
+	for (int i = 0; i < dimension.x; i++)
+	{
+		for (int j = 0; j < dimension.y; j++)
+		{
+			returnMatrix[i][j] = matrix[i][j];
+		}
+	}
+	return returnMatrix;
+}
+
+doubleCoordinates calcClusterGravityCenter(int** brightnessMatrix, coordinates point, int size){
+	doubleCoordinates gravCenter;
+
+	double brightSumX = 0.0, brightSumY = 0.0, brightSum = 0.0;
+
+
+	for (int i = -size; i <= size; ++i)
+	{
+		for (int j = -size; j <= size; j++)
+		{
+			brightSumX += brightnessMatrix[point.x + i][point.y + j] * (point.x + i);
+			brightSumY += brightnessMatrix[point.x + i][point.y + j] * (point.y + j);
+		
+			brightSum += brightnessMatrix[point.x + i][point.y + j];
+		}
+	}
+
+	gravCenter.x = brightSumX / brightSum;
+	gravCenter.y = brightSumY / brightSum;
+	return gravCenter;
+}
+
 vector<cluster> createClusterArray(int** brightnessMatrix, int maxBrightness){
 	vector<cluster> clusters;
 	coordinates curPoint;
 
-	int cnt = 0;
-	printf("Max Brightness: %d\n", maxBrightness);
+	int** workMatrix = copyMatrix(brightnessMatrix, imageDimension);
+
+	//printf("Max Brightness: %d\n", maxBrightness);
 
 	for(int x = 0; x < imageDimension.x; x++){
 		for (int y = 0; y < imageDimension.y; y++)
@@ -199,33 +244,26 @@ vector<cluster> createClusterArray(int** brightnessMatrix, int maxBrightness){
 			coordinates localMaxBrightnessPoint;
 			int localMaxBrightness;
 			
-			if(brightnessMatrix[x][y] > 0){
-				printf("curBrightness: %d at ", brightnessMatrix[x][y]);
-				printCoord(curPoint, "curPoint: ");
-				
-				localMaxBrightnessPoint = findLocalMaxBrightness(brightnessMatrix, curPoint, brightnessMatrix[x][y]);
-				
-				printCoord(localMaxBrightnessPoint, "localMaxBrightnessPoint: ");
-				
-				localMaxBrightness = brightnessMatrix[localMaxBrightnessPoint.x][localMaxBrightnessPoint.y];
-				clearMatrixAroundPoint(brightnessMatrix, curPoint);
+			if(workMatrix[x][y] > 0){
+				localMaxBrightnessPoint = findLocalMaxBrightness(workMatrix, curPoint, workMatrix[x][y]);
+				localMaxBrightness = workMatrix[localMaxBrightnessPoint.x][localMaxBrightnessPoint.y];
+				clearMatrixAroundPoint(workMatrix, curPoint);
 
 				cluster curCluster;
+
 				curCluster.maxPoint.x = localMaxBrightnessPoint.x;
 				curCluster.maxPoint.x = localMaxBrightnessPoint.x;
 				curCluster.brightness = localMaxBrightness;
+				curCluster.relBrightness = localMaxBrightness / maxBrightness;
+				curCluster.size = calcClusterSize(curCluster.relBrightness);
+				curCluster.gravCenter = calcClusterGravityCenter(brightnessMatrix, localMaxBrightnessPoint, curCluster.size);
 
 				clusters.push_back(curCluster);
-
-				printf("localMax: %d\n\n\n", localMaxBrightness);
-				cnt++;
-				
 			}
 
 		}
 	}
-	printf("FINISHED LOOP!\n");
-	printf("%d cluster angelegt\n", cnt);
+	printf("%lu ROI angelegt\n", clusters.size());
 	return clusters;
 }
 
@@ -261,7 +299,7 @@ coordinates getPicDimensions(string filename){
 	coordinates coord;
 	coord.x = width;
 	coord.y = height;
-	printCoord(coord, "Dimension");
+	printCoord(coord, "Imagedimension: ");
 	return coord;
 }
 
@@ -270,6 +308,7 @@ int main(){
 	int headerSize = getHeaderSize(filename);
 	printf("Headersize: %d\n", headerSize);
 	imageDimension = getPicDimensions(filename);
+	printf("\n");
 	int** brightnessMatrix = createBrightnessMatrix(filename, headerSize);
 	int maxBrightness = findMaxBrightnessAndDenoiseMatrix(brightnessMatrix, 25);
 	vector<cluster> roi = createClusterArray(brightnessMatrix, maxBrightness);
