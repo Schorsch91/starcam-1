@@ -67,7 +67,11 @@ void printCoord(doubleCoordinates c, string s = ""){
 }
 
 void printCluster(cluster c, string s = ""){
-
+	printf("Brightness %d (rel %f) at ", c.brightness, c.relBrightness);
+	printCoord(c.maxPoint);
+	printf("Size %d around gravity center ", c.size);
+	printCoord(c.gravCenter);
+	printf("\n\n");
 }
 
 bool** createBinaryMatrix(coordinates dimension){
@@ -252,11 +256,13 @@ vector<cluster> createClusterArray(int** brightnessMatrix, int maxBrightness){
 				cluster curCluster;
 
 				curCluster.maxPoint.x = localMaxBrightnessPoint.x;
-				curCluster.maxPoint.x = localMaxBrightnessPoint.x;
+				curCluster.maxPoint.y = localMaxBrightnessPoint.y;
 				curCluster.brightness = localMaxBrightness;
-				curCluster.relBrightness = localMaxBrightness / maxBrightness;
+				curCluster.relBrightness = (double)localMaxBrightness / maxBrightness;
 				curCluster.size = calcClusterSize(curCluster.relBrightness);
 				curCluster.gravCenter = calcClusterGravityCenter(brightnessMatrix, localMaxBrightnessPoint, curCluster.size);
+				
+				//printCluster(curCluster);
 
 				clusters.push_back(curCluster);
 			}
