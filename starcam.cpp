@@ -1,35 +1,10 @@
-#include <stdio.h>
-#include <fstream>
-#include <iostream>
-#include <string>
-#include <vector>
+#include "database.h"
 
 using namespace std;
 
-struct coordinates
-{
-	int x = -1;
-	int y = -1;
-};
-
-struct doubleCoordinates
-{
-	double x = -1.0;
-	double y = -1.0;
-};
-
-struct cluster
-{
-	coordinates maxPoint;
-	doubleCoordinates gravCenter;
-	int size = 1; 
-	int maxBrightness;
-	double relBrightness;
-	vector<coordinates> points;
-};
-
 vector<unsigned char> header;
 coordinates imageDimension;
+coordinates imageCenter;
 
 bool** outputMatrix;
 	
@@ -62,8 +37,22 @@ bool isValidPixel(coordinates pixel, bool checkForValidPrinting = false){
 	}
 }
 
+bool isValidPixel(doubleCoordinates pixel, bool checkForValidPrinting = false){
+	if(checkForValidPrinting){
+		return !(pixel.x < 1 || pixel.x > (imageDimension.x - 1) || 
+			pixel.y < 1 || pixel.y > (imageDimension.y - 1));
+	} else{
+		return !(pixel.x < 0 || pixel.x > imageDimension.x || 
+			pixel.y < 0 || pixel.y > imageDimension.y);
+	}
+}
+
 bool coordAreEqual(coordinates a, coordinates b){
 	return (a.x == b.x) && (a.y == b.y);
+}
+
+bool coordAreEqual(doubleCoordinates a, coordinates b){
+	return ((int)a.x == b.x) && ((int)a.y == b.y);
 }
 
 #pragma mark - matrix creations
@@ -135,6 +124,9 @@ coordinates getPicDimensions(vector<unsigned char> header){
 	coord.y = height;
 	printCoord(coord, "Imagedimension: ");
 	
+	imageCenter.x = width / 2;
+	imageCenter.y = height / 2;
+
 	return coord;
 }
 
@@ -272,11 +264,26 @@ bool pointHasNeighbour(coordinates point, int** matrix){
 	return returnVal;
 }
 
+bool pointIsEqualToOneOther(coordinates point, coordinates left, coordinates upperLeft, coordinates up, coordinates upperRight){
+	return coordAreEqual(point, left) || coordAreEqual(point, up) ||
+				coordAreEqual(point, upperLeft) || coordAreEqual(point, upperRight);
+}
+
+bool pointIsEqualToOneOther(doubleCoordinates point, coordinates left, coordinates upperLeft, coordinates up, coordinates upperRight){
+	return coordAreEqual(point, left) || coordAreEqual(point, up) ||
+				coordAreEqual(point, upperLeft) || coordAreEqual(point, upperRight);
+}
+
+bool hasValidGravCenter(cluster c){
+	return (c.gravCenter.x != -1.0 && isValidPixel(c.gravCenter));
+}
+
 int getClusterIndexOfNeighbour(coordinates point, vector<cluster> clusters){
 	bool left = point.x > 0;
 	bool up = point.y > 0;
 	bool upperLeft = left && up;
 	bool upperRight = up && (point.y < imageDimension.y);
+
 	coordinates leftCoord, upCoord, upperLeftCoord, upperRightCoord;
 	
 	if(left){
@@ -298,14 +305,20 @@ int getClusterIndexOfNeighbour(coordinates point, vector<cluster> clusters){
 
 	for(int i=0; i < clusters.size(); i++){
 		for(int j = 0; j < clusters[i].points.size(); j++){
-			if(coordAreEqual(clusters[i].points[j], leftCoord) || coordAreEqual(clusters[i].points[j], upCoord) ||
-				coordAreEqual(clusters[i].points[j], upperLeftCoord) || coordAreEqual(clusters[i].points[j], upperRightCoord)){
+			if(pointIsEqualToOneOther(clusters[i].points[j], leftCoord, upperLeftCoord, upCoord, upperRightCoord))
 				return i;
-			}
 		}
 	}
 
 	return -1;
+}
+
+int getClusterIndexOfPoint(coordinates point, vector<cluster> clusters){
+	for(int i = 0; i < clusters.size(); i++){
+		if(coordAreEqual(clusters[i].gravCenter, point))
+			return i;
+	}
+
 }
 
 int calcClusterSize(double relBrightness){
@@ -376,7 +389,7 @@ doubleCoordinates calcClusterGravityCenter(int** brightnessMatrix, vector<coordi
 	return gravCenter;
 }
 
-vector<cluster> createClusterArray(int** brightnessMatrix){
+vector<cluster> createClusters(int** brightnessMatrix){
 	vector<cluster> clusters;
 	coordinates curPoint;
 
@@ -421,12 +434,41 @@ vector<cluster> createClusterArray(int** brightnessMatrix){
 		clusters[i].size = calcClusterSize(clusters[i].relBrightness);
 		clusters[i].gravCenter = calcClusterGravityCenter(brightnessMatrix, clusters[i].points);
 		
-		printCluster(clusters[i]);
+		//printCluster(clusters[i]);
 		
 		writePointWithRadius(localMaxBrightnessPoint, clusters[i].size, outputMatrix);
 	}
 	writeBWMatrix(outputMatrix, header, "bild.bmp");
 	return clusters;
+}
+
+double vectorNorm(coordinates a){
+	return sqrt(pow(a.x,2) + pow(a.y,2));
+}
+
+coordinates searchCenterStar(vector<cluster> clusters){
+
+        double tempDist = 0;
+        coordinates diffCoordinate;
+        
+        //norm of imageCenter = maxDist
+        double minDist = vectorNorm(imageCenter);
+        coordinates minStar;
+  
+            for (vector<cluster>::iterator it = clusters.begin(); it != clusters.end(); it++){
+                //wegen Nullpunktsverschiebung in die Bild Mitte:
+                diffCoordinate.x = abs((*it).gravCenter.x - imageCenter.x);
+                diffCoordinate.y = abs((*it).gravCenter.y - imageCenter.y);
+                tempDist = vectorNorm(diffCoordinate);
+
+                if(tempDist < minDist){
+                        minDist = tempDist;
+                        minStar.x = (*it).gravCenter.x;
+                        minStar.y = (*it).gravCenter.y;
+                }
+                       
+        }
+        return minStar;
 }
 
 int main(){
@@ -442,7 +484,11 @@ int main(){
 	writeGreyscaleMatrix(brightnessMatrix, header, filename);
 	outputMatrix = createBinaryMatrix(imageDimension);
 
-	vector<cluster> clusters = createClusterArray(brightnessMatrix);
+	vector<cluster> clusters = createClusters(brightnessMatrix);
+	coordinates centerStar = searchCenterStar(clusters);
+	printCoord(centerStar, "most central star: ");
+	printf("cluster index of centerStar: %d\n", getClusterIndexOfPoint(centerStar, clusters)); 
+	//Database *db = new Database("hip_red_1.txt", "tab1.txt", "tab2.txt", 0.025, 5.8e-6);
 
 	return 0;
 }
